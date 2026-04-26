@@ -56,43 +56,15 @@ jobs:
           cp Info.plist build/Seedance2.app/Contents/Info.plist
           chmod +x build/Seedance2.app/Contents/MacOS/Seedance2
 
-      - name: Create ZIP
+      - name: Create DMG
         run: |
-          cd build && zip -r Seedance2-macOS.zip Seedance2.app
+          # 在 /tmp 创建 DMG 再复制到 build，避免源目标相同问题
+          hdiutil create -volname Seedance2 -srcfolder build/Seedance2.app -ov -format UDZO /tmp/Seedance2.dmg
+          cp /tmp/Seedance2.dmg build/Seedance2.dmg
 
-      - name: Upload ZIP
+      - name: Upload DMG
         uses: actions/upload-artifact@v4
         with:
           name: Seedance2-macOS
-          path: build/Seedance2-macOS.zip
+          path: build/Seedance2.dmg
           retention-days: 30
-
-  release:
-    needs: [build-windows, build-macos]
-    runs-on: ubuntu-latest
-    steps:
-      - name: Download EXE
-        uses: actions/download-artifact@v4
-        with:
-          name: Seedance2-Windows
-          path: release
-
-      - name: Download DMG
-        uses: actions/download-artifact@v4
-        with:
-          name: Seedance2-macOS
-          path: release
-
-      - name: List artifacts
-        run: ls -lh release/
-
-      - name: Create Release
-        uses: softprops/action-gh-release@v2
-        with:
-          files: release/*
-          tag_name: v1.0.0
-          name: Seedance 2.0 Desktop App
-          draft: false
-          prerelease: false
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
