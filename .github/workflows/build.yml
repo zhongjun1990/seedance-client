@@ -1,0 +1,99 @@
+name: Build Desktop App
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          pip install -r requirements.txt
+          pip install pyinstaller
+
+      - name: Build Windows EXE
+        run: |
+          pyinstaller --onefile --windowed --name Seedance2 --add-data "templates;templates" main.py
+          Move-Item -Force dist/main.exe dist/Seedance2.exe
+
+      - name: Upload EXE
+        uses: actions/upload-artifact@v4
+        with:
+          name: Seedance2-Windows
+          path: dist/Seedance2.exe
+          retention-days: 30
+
+  build-macos:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          pip install -r requirements.txt
+          pip install pyinstaller
+
+      - name: Build macOS App
+        run: |
+          mkdir -p build/Seedance2.app/Contents/MacOS
+          mkdir -p build/Seedance2.app/Contents/Resources
+          pyinstaller --onefile --windowed --name Seedance2 --add-data "templates:templates" main.py
+          cp dist/main build/Seedance2.app/Contents/MacOS/Seedance2
+          cp Info.plist build/Seedance2.app/Contents/Info.plist
+          chmod +x build/Seedance2.app/Contents/MacOS/Seedance2
+
+      - name: Create DMG
+        run: |
+          hdiutil create -volname Seedance2 -srcfolder build/Seedance2.app -ov -format UDZO build/Seedance2.dmg
+
+      - name: Upload DMG
+        uses: actions/upload-artifact@v4
+        with:
+          name: Seedance2-macOS
+          path: build/Seedance2.dmg
+          retention-days: 30
+
+  release:
+    needs: [build-windows, build-macos]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download EXE
+        uses: actions/download-artifact@v4
+        with:
+          name: Seedance2-Windows
+          path: release
+
+      - name: Download DMG
+        uses: actions/download-artifact@v4
+        with:
+          name: Seedance2-macOS
+          path: release
+
+      - name: List artifacts
+        run: ls -lh release/
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: release/*
+          tag_name: v1.0.0
+          name: Seedance 2.0 Desktop App
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
