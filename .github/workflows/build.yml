@@ -56,15 +56,15 @@ jobs:
           cp Info.plist build/Seedance2.app/Contents/Info.plist
           chmod +x build/Seedance2.app/Contents/MacOS/Seedance2
 
-      - name: Create DMG
+      - name: Create ZIP
         run: |
-          hdiutil create -volname Seedance2 -srcfolder build/Seedance2.app -ov -format UDZO build/Seedance2.dmg
+          cd build && zip -r Seedance2-macOS.zip Seedance2.app && mv Seedance2-macOS.zip ../build/
 
-      - name: Upload DMG
+      - name: Upload ZIP
         uses: actions/upload-artifact@v4
         with:
           name: Seedance2-macOS
-          path: build/Seedance2.dmg
+          path: build/Seedance2-macOS.zip
           retention-days: 30
 
   release:
