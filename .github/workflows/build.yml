@@ -51,8 +51,8 @@ jobs:
         run: |
           mkdir -p build/Seedance2.app/Contents/MacOS
           mkdir -p build/Seedance2.app/Contents/Resources
-          pyinstaller --onefile --windowed --name Seedance2 --add-data "templates:templates" main.py
-          cp dist/Seedance2 build/Seedance2.app/Contents/MacOS/Seedance2
+          pyinstaller --onedir --windowed --name Seedance2 --add-data "templates:templates" main.py
+          cp -r dist/Seedance2/* build/Seedance2.app/Contents/MacOS/
           cp Info.plist build/Seedance2.app/Contents/Info.plist
           chmod +x build/Seedance2.app/Contents/MacOS/Seedance2
 
