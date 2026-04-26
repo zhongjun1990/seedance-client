@@ -24,7 +24,6 @@ jobs:
       - name: Build Windows EXE
         run: |
           pyinstaller --onefile --windowed --name Seedance2 --add-data "templates;templates" main.py
-          Move-Item -Force dist/main.exe dist/Seedance2.exe
 
       - name: Upload EXE
         uses: actions/upload-artifact@v4
@@ -53,7 +52,7 @@ jobs:
           mkdir -p build/Seedance2.app/Contents/MacOS
           mkdir -p build/Seedance2.app/Contents/Resources
           pyinstaller --onefile --windowed --name Seedance2 --add-data "templates:templates" main.py
-          cp dist/main build/Seedance2.app/Contents/MacOS/Seedance2
+          cp dist/Seedance2 build/Seedance2.app/Contents/MacOS/Seedance2
           cp Info.plist build/Seedance2.app/Contents/Info.plist
           chmod +x build/Seedance2.app/Contents/MacOS/Seedance2
 
@@ -88,7 +87,7 @@ jobs:
         run: ls -lh release/
 
       - name: Create Release
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@v2
         with:
           files: release/*
           tag_name: v1.0.0

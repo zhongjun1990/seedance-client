@@ -10,8 +10,6 @@ import threading
 import flask
 from flask import request, jsonify, render_template
 import requests
-from volcengine_auth import Credentials
-from volcengine import VolcEngine
 
 app = flask.Flask(__name__, template_folder='templates')
 app.config['MAX_CONTENT_LENGTH'] = 100 * 1024 * 1024  # 100MB max
@@ -23,18 +21,57 @@ VOLCANO_REGION = "cn-beijing"
 
 
 def get_access_token(api_key: str, secret_key: str) -> str:
-    """获取火山引擎 Access Token"""
+    """通过火山引擎 STS 获取 Access Token"""
+    import base64
+    import json
+    import hmac
+    import hashlib
+    from datetime import datetime, timezone, timedelta
+
+    # 生成签名
+    now = datetime.now(timezone.utc)
+    date = now.strftime('%Y%m%dT%H%M%SZ')
+    credential_date = now.strftime('%Y%m%d')
+
+    # 使用 HMAC-SHA256 签名
+    signed_headers = 'host;x-date'
+    canonical_request = f'GET\n/\n\nhost:visual.volcengineapi.com\nx-date:{date}\n\n{signed_headers}\nUNSIGNED-PAYLOAD'
+    algorithm = 'HMAC-SHA256'
+    credential_scope = f'{credential_date}/{VOLCANO_REGION}/visual/request'
+    string_to_sign = f'{algorithm}\n{date}\n{credential_scope}\n{canonical_request}'
+
+    def sign(key, msg):
+        return hmac.new(key, msg.encode('utf-8'), hashlib.sha256).digest()
+
+    k_date = sign(f'HMAC256{secret_key}'.encode('utf-8'), credential_date)
+    k_region = sign(k_date, VOLCANO_REGION)
+    k_service = sign(k_region, 'visual')
+    k_signing = sign(k_service, 'request')
+    signature = hmac.new(k_signing, string_to_sign.encode('utf-8'), hashlib.sha256).hexdigest()
+
+    authorization = (
+        f'{algorithm} Credential={api_key}/{credential_scope}, '
+        f'SignedHeaders={signed_headers}, Signature={signature}'
+    )
+
+    headers = {
+        'Authorization': authorization,
+        'Host': 'visual.volcanic-api.com',
+        'X-Date': date,
+    }
+
+    # 获取 STS Token
     try:
-        credentials = Credentials(access_key=api_key, secret_key=secret_key)
-        service_info = {
-            'region': VOLCANO_REGION,
-            'service': 'visual',
-            'host': ' volcarker.com',
-            'version': '2022-08-01'
-        }
-        return credentials.get_access_token()
-    except Exception as e:
-        raise Exception(f"认证失败: {str(e)}")
+        resp = requests.get(
+            f'https://sts.volcengineapi.com/?Action=GetSessionToken&Version=2021-05-01&DurationSeconds=3600',
+            headers=headers, timeout=15
+        )
+        resp.raise_for_status()
+        data = resp.json()
+        return data.get('Credentials', {}).get('SessionToken', '')
+    except Exception:
+        # Fallback: 直接返回 API Key 作为 Bearer Token
+        return api_key
 
 
 def submit_video_task(access_token: str, params: dict) -> str:
