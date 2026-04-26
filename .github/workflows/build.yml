@@ -23,7 +23,6 @@ jobs:
 
       - name: Build Windows EXE
         run: |
-          cp AppIcon.ico .
           pyinstaller --onefile --windowed --name BatchVideo --add-data "templates;templates" --icon AppIcon.ico main.py
 
       - name: Upload EXE
