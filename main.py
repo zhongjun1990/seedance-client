@@ -1,219 +1,293 @@
 #!/usr/bin/env python3
 """
-Seedance 2.0 视频生成桌面工具 - Flask 后端
-火山引擎 Seedance 2.0 API 调用工具，支持本地运行
+Seedance 2.0 - HermeQuant 积分版
+火山引擎 Seedance 2.0 AI 视频生成（积分计费）
 """
 
 import os
+import json
 import time
 import threading
+import requests
 import flask
 from flask import request, jsonify, render_template
-import requests
 
 app = flask.Flask(__name__, template_folder='templates')
-app.config['MAX_CONTENT_LENGTH'] = 100 * 1024 * 1024  # 100MB max
+app.config['MAX_CONTENT_LENGTH'] = 100 * 1024 * 1024
 
-# 全局状态
+# ============== 火山引擎 ARK API 配置 ==============
+ARK_API_KEY = "5c33b660-38bd-4f9b-b719-3c0f1ff757e8"
+ARK_BASE_URL = "https://ark.cn-beijing.volces.com/api/v3"
+ARK_MODEL = "doubao-seedance-2-0-260128"
+ARK_HEADERS = {
+    "Authorization": f"Bearer {ARK_API_KEY}",
+    "Content-Type": "application/json",
+}
+
+# ============== 任务状态 ==============
 task_results = {}
-VOLCANO_API_BASE = "https://visual.volcengineapi.com"
-VOLCANO_REGION = "cn-beijing"
+task_cost_map = {}   # task_id -> cost_points
+
+# ============== 导入积分系统 ==============
+import credits_manager
+credits_manager.init()
 
 
-def get_access_token(api_key: str, secret_key: str) -> str:
-    """通过火山引擎 STS 获取 Access Token"""
-    import base64
-    import json
-    import hmac
-    import hashlib
-    from datetime import datetime, timezone, timedelta
+def hq_headers():
+    return {"Authorization": f"Bearer {ARK_API_KEY}", "Content-Type": "application/json"}
 
-    # 生成签名
-    now = datetime.now(timezone.utc)
-    date = now.strftime('%Y%m%dT%H%M%SZ')
-    credential_date = now.strftime('%Y%m%d')
 
-    # 使用 HMAC-SHA256 签名
-    signed_headers = 'host;x-date'
-    canonical_request = f'GET\n/\n\nhost:visual.volcengineapi.com\nx-date:{date}\n\n{signed_headers}\nUNSIGNED-PAYLOAD'
-    algorithm = 'HMAC-SHA256'
-    credential_scope = f'{credential_date}/{VOLCANO_REGION}/visual/request'
-    string_to_sign = f'{algorithm}\n{date}\n{credential_scope}\n{canonical_request}'
-
-    def sign(key, msg):
-        return hmac.new(key, msg.encode('utf-8'), hashlib.sha256).digest()
-
-    k_date = sign(f'HMAC256{secret_key}'.encode('utf-8'), credential_date)
-    k_region = sign(k_date, VOLCANO_REGION)
-    k_service = sign(k_region, 'visual')
-    k_signing = sign(k_service, 'request')
-    signature = hmac.new(k_signing, string_to_sign.encode('utf-8'), hashlib.sha256).hexdigest()
-
-    authorization = (
-        f'{algorithm} Credential={api_key}/{credential_scope}, '
-        f'SignedHeaders={signed_headers}, Signature={signature}'
-    )
-
-    headers = {
-        'Authorization': authorization,
-        'Host': 'visual.volcanic-api.com',
-        'X-Date': date,
+def submit_video_task(params: dict) -> tuple[str, str]:
+    """
+    提交视频生成任务到火山引擎 ARK API
+    返回 (task_id, error_msg)
+    """
+    payload = {
+        "model": ARK_MODEL,
+        "content": [
+            {"type": "text", "text": params["prompt"]}
+        ],
+        "ratio": params.get("aspect_ratio", "16:9"),
+        "duration": params.get("duration", 6),
+        "watermark": False,
     }
 
-    # 获取 STS Token
+    # 参考图片
+    if params.get("image_url"):
+        payload["content"].append({
+            "type": "image_url",
+            "image_url": {"url": params["image_url"]},
+            "role": "reference_image"
+        })
+
+    # 参考音频
+    if params.get("audio_url"):
+        payload["content"].append({
+            "type": "audio_url",
+            "audio_url": {"url": params["audio_url"]},
+            "role": "reference_audio"
+        })
+
+    try:
+        resp = requests.post(
+            f"{ARK_BASE_URL}/contents/generations/tasks",
+            headers=hq_headers(),
+            json=payload,
+            timeout=30
+        )
+        data = resp.json()
+        if resp.status_code != 200 and resp.status_code != 201:
+            return None, f"API错误 {resp.status_code}: {data}"
+
+        task_id = data.get("id") or data.get("data", {}).get("id")
+        if not task_id:
+            return None, f"未获取到task_id: {data}"
+        return task_id, None
+    except Exception as e:
+        return None, str(e)
+
+
+def query_task_status(task_id: str) -> tuple[dict, str]:
+    """查询任务状态"""
     try:
         resp = requests.get(
-            f'https://sts.volcengineapi.com/?Action=GetSessionToken&Version=2021-05-01&DurationSeconds=3600',
-            headers=headers, timeout=15
+            f"{ARK_BASE_URL}/contents/generations/tasks/{task_id}",
+            headers=hq_headers(),
+            timeout=30
         )
+        if resp.status_code == 404:
+            return None, "任务不存在"
         resp.raise_for_status()
-        data = resp.json()
-        return data.get('Credentials', {}).get('SessionToken', '')
-    except Exception:
-        # Fallback: 直接返回 API Key 作为 Bearer Token
-        return api_key
+        return resp.json(), None
+    except Exception as e:
+        return None, str(e)
 
 
-def submit_video_task(access_token: str, params: dict) -> str:
-    """提交视频生成任务"""
-    url = f"{VOLCANO_API_BASE}/api/v1/seedance/video/generation"
-    headers = {
-        'Authorization': f'Bearer {access_token}',
-        'Content-Type': 'application/json'
-    }
-    response = requests.post(url, json=params, headers=headers, timeout=30)
-    response.raise_for_status()
-    data = response.json()
-    if data.get('code') != 0:
-        raise Exception(data.get('message', '提交失败'))
-    return data['data']['task_id']
+def poll_task(task_id: str, cost_points: int):
+    """后台轮询任务，完成后处理积分"""
+    max_wait = 900  # 15分钟超时
+    start = time.time()
 
-
-def query_task_status(access_token: str, task_id: str) -> dict:
-    """查询任务状态"""
-    url = f"{VOLCANO_API_BASE}/api/v1/seedance/video/generation/{task_id}"
-    headers = {'Authorization': f'Bearer {access_token}'}
-    response = requests.get(url, headers=headers, timeout=30)
-    response.raise_for_status()
-    return response.json()
-
-
-def poll_task(access_token: str, task_id: str, callback=None):
-    """轮询任务状态直到完成"""
-    while True:
+    while time.time() - start < max_wait:
         try:
-            result = query_task_status(access_token, task_id)
-            status = result['data']['status']
-            task_results[task_id] = result
-            if callback:
-                callback(result)
-            if status in ['SUCCESS', 'FAILED', 'CANCELLED']:
-                break
-            time.sleep(5)
-        except Exception as e:
-            task_results[task_id] = {'error': str(e)}
-            break
+            result, err = query_task_status(task_id)
+            if err:
+                _handle_failure(task_id, err, cost_points)
+                return
 
+            status = result.get("status", "").upper()
+            task_results[task_id] = result
+
+            if status == "SUCCEEDED":
+                _handle_success(task_id, result, cost_points)
+                return
+            elif status == "FAILED":
+                _handle_failure(task_id, result.get("error", {}).get("message", "任务失败"), cost_points)
+                return
+            elif status == "CANCELLED":
+                _handle_failure(task_id, "任务已取消", cost_points)
+                return
+
+            time.sleep(10)
+        except Exception as e:
+            task_results[task_id] = {"error": str(e)}
+            _handle_failure(task_id, str(e), cost_points)
+            return
+
+    # 超时
+    _handle_failure(task_id, "任务超时（超过15分钟）", cost_points)
+
+
+def _handle_success(task_id: str, result: dict, cost_points: int):
+    task_results[task_id] = {
+        "status": "SUCCESS",
+        "data": result,
+        "cost_points": cost_points,
+        "completed_at": time.strftime("%Y-%m-%d %H:%M:%S"),
+    }
+
+
+def _handle_failure(task_id: str, reason: str, cost_points: int):
+    task_results[task_id] = {
+        "status": "FAILED",
+        "error": reason,
+        "cost_points": cost_points,
+        "completed_at": time.strftime("%Y-%m-%d %H:%M:%S"),
+    }
+    credits_manager.refund_balance(cost_points, task_id, reason)
+
+
+# ============== Flask 路由 ==============
 
 @app.route('/')
 def index():
     return render_template('index.html')
 
 
-@app.route('/api/get_token', methods=['POST'])
-def api_get_token():
-    """获取 Access Token"""
+@app.route('/api/balance')
+def api_balance():
+    """查询积分余额"""
+    uid = "default"
+    balance = credits_manager.get_balance(uid)
+    trans = credits_manager.get_transactions(uid, limit=10)
+    return jsonify({
+        "success": True,
+        "balance": balance,
+        "yuan": balance / 10,
+        "recent_transactions": trans,
+        "rate_table": credits_manager.RATE_TABLE,
+    })
+
+
+@app.route('/api/bonus', methods=['POST'])
+def api_bonus():
+    """领取新用户赠送"""
+    ok, msg = credits_manager.apply_bonus()
+    if ok:
+        return jsonify({"success": True, "message": msg, "balance": credits_manager.get_balance()})
+    return jsonify({"success": False, "message": msg})
+
+
+@app.route('/api/redeem', methods=['POST'])
+def api_redeem():
+    """兑换充值码"""
     data = request.json
-    api_key = data.get('api_key', '')
-    secret_key = data.get('secret_key', '')
-    if not api_key or not secret_key:
-        return jsonify({'success': False, 'error': '请提供 API Key 和 Secret Key'}), 400
-    try:
-        token = get_access_token(api_key, secret_key)
-        return jsonify({'success': True, 'token': token})
-    except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
+    code = data.get("code", "").strip()
+    if not code:
+        return jsonify({"success": False, "error": "请输入充值码"}), 400
+    ok, msg = credits_manager.redeem_code(code)
+    if ok:
+        return jsonify({"success": True, "message": msg, "balance": credits_manager.get_balance()})
+    return jsonify({"success": False, "error": msg}), 400
 
 
-@app.route('/api/submit_task', methods=['POST'])
-def api_submit_task():
-    """提交视频生成任务"""
+@app.route('/api/transactions')
+def api_transactions():
+    """交易流水"""
+    trans = credits_manager.get_transactions(limit=100)
+    return jsonify({"success": True, "transactions": trans})
+
+
+@app.route('/api/submit', methods=['POST'])
+def api_submit():
+    """
+    提交视频生成任务
+    1. 计算积分
+    2. 预扣积分
+    3. 提交到火山引擎
+    4. 后台轮询
+    """
     data = request.json
-    access_token = data.get('access_token', '')
-    if not access_token:
-        return jsonify({'success': False, 'error': '请先获取 Access Token'}), 400
+    video_type = data.get("video_type", "text")
+    duration = int(data.get("duration", 6))
+    has_audio = bool(data.get("audio_url"))
 
-    # 构建参数
+    # 费率计算
+    rate_key = credits_manager.get_rate_key(video_type, duration)
+    cost = credits_manager.RATE_TABLE[rate_key]["cost"]
+    if has_audio:
+        cost += credits_manager.RATE_TABLE["audio"]["cost"]
+
+    # 积分预扣
+    task_id = f"TASK-{int(time.time()*1000)}"
+    ok, msg = credits_manager.deduct_balance(cost, task_id, f"{credits_manager.RATE_TABLE[rate_key]['name']}")
+    if not ok:
+        return jsonify({"success": False, "error": msg}), 400
+
+    task_cost_map[task_id] = cost
+
+    # 构建火山引擎参数
     params = {
-        'prompt': data.get('prompt', ''),
-        'duration': int(data.get('duration', 6)),
-        'aspect_ratio': data.get('aspect_ratio', '16:9'),
+        "prompt": data.get("prompt", ""),
+        "aspect_ratio": data.get("aspect_ratio", "16:9"),
+        "duration": duration,
+        "image_url": data.get("image_url"),
+        "audio_url": data.get("audio_url"),
     }
 
-    # 可选参数
-    if data.get('image_url'):
-        params['image_url'] = data['image_url']
-    if data.get('audio_url'):
-        params['audio_url'] = data['audio_url']
+    # 提交到火山引擎
+    ark_task_id, err = submit_video_task(params)
+    if err:
+        credits_manager.refund_balance(cost, task_id, f"火山引擎提交失败: {err}")
+        return jsonify({"success": False, "error": f"提交失败: {err}"}), 500
 
-    try:
-        task_id = submit_video_task(access_token, params)
-        # 后台轮询
-        thread = threading.Thread(target=poll_task, args=(access_token, task_id))
-        thread.daemon = True
-        thread.start()
-        return jsonify({'success': True, 'task_id': task_id})
-    except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
+    # 映射本地task_id -> 火山task_id
+    task_results[task_id] = {
+        "status": "PENDING",
+        "ark_task_id": ark_task_id,
+        "submitted_at": time.strftime("%Y-%m-%d %H:%M:%S"),
+    }
+
+    # 后台轮询
+    thread = threading.Thread(target=poll_task, args=(ark_task_id, cost))
+    thread.daemon = True
+    thread.start()
+
+    return jsonify({
+        "success": True,
+        "task_id": task_id,
+        "ark_task_id": ark_task_id,
+        "cost": cost,
+        "yuan": cost / 10,
+        "message": f"任务已提交，消耗 {cost}积分（{cost/10}元）",
+    })
 
 
-@app.route('/api/query_task', methods=['GET'])
-def api_query_task():
+@app.route('/api/query', methods=['GET'])
+def api_query():
     """查询任务状态"""
-    task_id = request.args.get('task_id', '')
-    access_token = request.args.get('access_token', '')
+    task_id = request.args.get("task_id")
     if not task_id:
-        return jsonify({'success': False, 'error': '缺少 task_id'}), 400
+        return jsonify({"success": False, "error": "缺少task_id"}), 400
 
-    if task_id in task_results:
-        return jsonify({'success': True, 'data': task_results[task_id]})
+    if task_id not in task_results:
+        return jsonify({"success": False, "error": "任务不存在"}), 404
 
-    if access_token:
-        try:
-            result = query_task_status(access_token, task_id)
-            return jsonify({'success': True, 'data': result})
-        except Exception as e:
-            return jsonify({'success': False, 'error': str(e)}), 500
-
-    return jsonify({'success': False, 'error': '缺少 access_token'}), 400
+    return jsonify({"success": True, "data": task_results[task_id]})
 
 
-@app.route('/api/upload', methods=['POST'])
-def api_upload():
-    """上传文件到 Seedance"""
-    access_token = request.args.get('access_token', '')
-    if not access_token:
-        return jsonify({'success': False, 'error': '缺少 access_token'}), 400
-
-    if 'file' not in request.files:
-        return jsonify({'success': False, 'error': '没有文件'}), 400
-
-    file = request.files['file']
-    if file.filename == '':
-        return jsonify({'success': False, 'error': '文件名为空'}), 400
-
-    try:
-        url = f"{VOLCANO_API_BASE}/api/v1/seedance/upload"
-        headers = {'Authorization': f'Bearer {access_token}'}
-        files = {'file': (file.filename, file.read(), file.content_type)}
-        response = requests.post(url, files=files, headers=headers, timeout=60)
-        response.raise_for_status()
-        result = response.json()
-        return jsonify({'success': True, 'url': result['data']['url']})
-    except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
-
-
-if __name__ == '__main__':
-    port = int(os.environ.get('PORT', 5173))
-    app.run(host='0.0.0.0', port=port, debug=False)
+if __name__ == "__main__":
+    port = int(os.environ.get("PORT", 5173))
+    print(f"Seedance 2.0 HermeQuant 积分版启动，端口 {port}")
+    print(f"积分存储路径: {credits_manager.DATA_DIR}")
+    app.run(host="0.0.0.0", port=port, debug=False)

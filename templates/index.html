@@ -3,185 +3,416 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Seedance 2.0 - 视频生成工具</title>
+    <title>Seedance 2.0 - AI视频生成</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         body { font-family: 'PingFang SC', 'Microsoft YaHei', sans-serif; }
-        .gradient-bg { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); }
-        .card { background: rgba(255,255,255,0.95); backdrop-filter: blur(10px); }
-        .btn-primary { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); }
+        .gradient-bg { background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%); }
+        .card { background: rgba(255,255,255,0.97); backdrop-filter: blur(10px); }
+        .btn-primary { background: linear-gradient(135deg, #e94560 0%, #ff6b6b 100%); }
         .btn-primary:hover { opacity: 0.9; transform: translateY(-1px); }
-        .status-success { color: #10b981; }
-        .status-pending { color: #f59e0b; }
-        .status-failed { color: #ef4444; }
-        textarea:focus, input:focus, select:focus { outline: none; border-color: #667eea; box-shadow: 0 0 0 3px rgba(102,126,234,0.2); }
-        .fade-in { animation: fadeIn 0.3s ease; }
-        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        .btn-gold { background: linear-gradient(135deg, #f7971e 0%, #ffd200 100%); }
+        .credits-display { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); }
+        textarea:focus, input:focus, select:focus { outline: none; border-color: #e94560; box-shadow: 0 0 0 3px rgba(233,69,96,0.15); }
+        .fade-in { animation: fadeIn 0.4s ease; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(15px); } to { opacity: 1; transform: translateY(0); } }
+        .task-card { border-left: 4px solid #e94560; }
+        .tx-recharge { border-left: 4px solid #10b981; }
+        .tx-consume { border-left: 4px solid #ef4444; }
+        .tx-refund { border-left: 4px solid #f59e0b; }
+        .tx-bonus { border-left: 4px solid #8b5cf6; }
+        .badge-gold { background: linear-gradient(135deg, #f7971e, #ffd200); color: #1a1a2e; }
     </style>
 </head>
 <body class="min-h-screen gradient-bg">
     <div class="container mx-auto px-4 py-8 max-w-4xl">
         <!-- Header -->
-        <div class="text-center mb-8 fade-in">
-            <h1 class="text-4xl font-bold text-white mb-2">🎬 Seedance 2.0</h1>
-            <p class="text-white/80">火山引擎 AI 视频生成工具</p>
+        <div class="text-center mb-6 fade-in">
+            <h1 class="text-4xl font-bold text-white mb-1">🎬 Seedance 2.0</h1>
+            <p class="text-white/60 text-sm">HermeQuant AI 视频生成平台</p>
         </div>
 
-        <!-- Auth Card -->
-        <div class="card rounded-2xl shadow-2xl p-8 mb-6 fade-in">
-            <h2 class="text-xl font-semibold text-gray-800 mb-4 flex items-center gap-2">
-                <span>🔐</span> 身份认证
-            </h2>
-            <div class="grid md:grid-cols-2 gap-4">
-                <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1">Access Key (API Key)</label>
-                    <input type="text" id="apiKey" placeholder="输入 Access Key"
-                           class="w-full px-4 py-2 border border-gray-300 rounded-lg transition-all">
-                </div>
-                <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1">Secret Key</label>
-                    <input type="password" id="secretKey" placeholder="输入 Secret Key"
-                           class="w-full px-4 py-2 border border-gray-300 rounded-lg transition-all">
-                </div>
+        <!-- Credits Banner -->
+        <div class="credits-display rounded-2xl shadow-2xl p-5 mb-6 fade-in flex items-center justify-between">
+            <div>
+                <div class="text-white/70 text-sm mb-1">💰 积分余额</div>
+                <div class="text-white text-3xl font-bold" id="balanceDisplay">--</div>
+                <div class="text-white/60 text-sm mt-1" id="yuanDisplay">约 -- 元</div>
             </div>
-            <button onclick="getToken()" class="mt-4 btn-primary text-white px-6 py-2 rounded-lg font-medium transition-all w-full md:w-auto">
-                🔑 获取 Access Token
-            </button>
-            <div id="tokenStatus" class="mt-3 text-sm hidden"></div>
-            <div class="mt-3">
-                <label class="block text-sm font-medium text-gray-700 mb-1">Access Token</label>
-                <input type="text" id="accessToken" placeholder="获取后自动填入，或手动粘贴"
-                       class="w-full px-4 py-2 border border-gray-300 rounded-lg bg-gray-50">
+            <div class="flex gap-3">
+                <button onclick="showRechargeModal()" class="btn-gold text-gray-900 px-5 py-2 rounded-xl font-bold text-sm hover:opacity-90 transition-all">
+                    ⚡ 充值积分
+                </button>
+                <button onclick="claimBonus()" id="bonusBtn" class="bg-white/20 text-white px-4 py-2 rounded-xl font-medium text-sm hover:bg-white/30 transition-all">
+                    🎁 领取赠送
+                </button>
+            </div>
+        </div>
+
+        <!-- Rate Table -->
+        <div class="card rounded-2xl shadow-xl p-5 mb-6 fade-in">
+            <h3 class="font-semibold text-gray-700 mb-3 text-sm">📋 积分费率</h3>
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-3" id="rateTable">
+                <div class="bg-gray-50 rounded-xl p-3 text-center">
+                    <div class="text-xs text-gray-500">文字→视频 6秒</div>
+                    <div class="text-lg font-bold text-gray-800">120积分</div>
+                    <div class="text-xs text-gray-400">¥12</div>
+                </div>
+                <div class="bg-gray-50 rounded-xl p-3 text-center">
+                    <div class="text-xs text-gray-500">文字→视频 11秒</div>
+                    <div class="text-lg font-bold text-gray-800">200积分</div>
+                    <div class="text-xs text-gray-400">¥20</div>
+                </div>
+                <div class="bg-gray-50 rounded-xl p-3 text-center">
+                    <div class="text-xs text-gray-500">图片→视频 6秒</div>
+                    <div class="text-lg font-bold text-gray-800">150积分</div>
+                    <div class="text-xs text-gray-400">¥15</div>
+                </div>
+                <div class="bg-gray-50 rounded-xl p-3 text-center">
+                    <div class="text-xs text-gray-500">图片→视频 11秒</div>
+                    <div class="text-lg font-bold text-gray-800">250积分</div>
+                    <div class="text-xs text-gray-400">¥25</div>
+                </div>
             </div>
         </div>
 
         <!-- Generation Card -->
         <div class="card rounded-2xl shadow-2xl p-8 mb-6 fade-in">
-            <h2 class="text-xl font-semibold text-gray-800 mb-4 flex items-center gap-2">
-                <span>🎥</span> 视频生成
+            <h2 class="text-xl font-semibold text-gray-800 mb-5 flex items-center gap-2">
+                <span>🎥</span> 生成视频
             </h2>
 
             <div class="mb-4">
-                <label class="block text-sm font-medium text-gray-700 mb-1">视频类型</label>
+                <label class="block text-sm font-medium text-gray-700 mb-2">视频类型</label>
                 <div class="flex gap-4">
                     <label class="flex items-center gap-2 cursor-pointer">
                         <input type="radio" name="videoType" value="text" checked onchange="toggleImageUpload()"
-                               class="w-4 h-4 text-indigo-600">
+                               class="w-4 h-4 text-pink-500">
                         <span>文字生成视频</span>
                     </label>
                     <label class="flex items-center gap-2 cursor-pointer">
                         <input type="radio" name="videoType" value="image" onchange="toggleImageUpload()"
-                               class="w-4 h-4 text-indigo-600">
+                               class="w-4 h-4 text-pink-500">
                         <span>图片生成视频</span>
                     </label>
                 </div>
             </div>
 
+            <!-- Image Upload -->
             <div id="imageUploadSection" class="mb-4 hidden">
                 <label class="block text-sm font-medium text-gray-700 mb-1">参考图片</label>
-                <div class="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:border-indigo-400 transition-colors">
+                <div class="border-2 border-dashed border-gray-300 rounded-lg p-5 text-center hover:border-pink-400 transition-colors">
                     <input type="file" id="imageFile" accept="image/*" class="hidden" onchange="handleImageSelect(event)">
-                    <div id="imagePreviewArea" onclick="document.getElementById('imageFile').click()">
-                        <div id="noImage" class="text-gray-400">
-                            <div class="text-4xl mb-2">🖼️</div>
-                            <p>点击上传图片 或 拖拽到此处</p>
-                            <p class="text-xs mt-1">支持 JPG/PNG/WebP，最大 10MB</p>
+                    <div onclick="document.getElementById('imageFile').click()">
+                        <div id="noImage" class="text-gray-400 cursor-pointer">
+                            <div class="text-3xl mb-1">🖼️</div>
+                            <p class="text-sm">点击上传图片（最大10MB）</p>
                         </div>
-                        <div id="hasImage" class="hidden">
-                            <img id="previewImg" class="max-h-40 mx-auto rounded-lg mb-2">
+                        <div id="hasImage" class="hidden cursor-pointer">
+                            <img id="previewImg" class="max-h-32 mx-auto rounded-lg mb-1">
                             <p id="imageName" class="text-sm text-gray-600"></p>
                         </div>
                     </div>
                 </div>
-                <input type="text" id="imageUrl" placeholder="或直接输入图片 URL"
-                       class="w-full mt-2 px-4 py-2 border border-gray-300 rounded-lg">
+                <input type="text" id="imageUrl" placeholder="或输入图片 URL" class="w-full mt-2 px-4 py-2 border border-gray-300 rounded-lg text-sm">
             </div>
 
+            <!-- Prompt -->
             <div class="mb-4">
-                <label class="block text-sm font-medium text-gray-700 mb-1">提示词</label>
-                <textarea id="prompt" rows="4" placeholder="描述你想要生成的视频内容..."
-                          class="w-full px-4 py-2 border border-gray-300 rounded-lg resize-none"></textarea>
+                <label class="block text-sm font-medium text-gray-700 mb-1">
+                    提示词 <span class="text-gray-400 text-xs">（描述你想要生成的视频内容）</span>
+                </label>
+                <textarea id="prompt" rows="3" placeholder="例如：一只橘色的猫在草地上奔跑，阳光明媚" class="w-full px-4 py-2 border border-gray-300 rounded-lg resize-none"></textarea>
             </div>
 
-            <div class="grid md:grid-cols-2 gap-4 mb-4">
+            <!-- Options -->
+            <div class="grid md:grid-cols-3 gap-4 mb-4">
                 <div>
                     <label class="block text-sm font-medium text-gray-700 mb-1">视频比例</label>
                     <select id="aspectRatio" class="w-full px-4 py-2 border border-gray-300 rounded-lg">
-                        <option value="16:9">16:9 横屏 (1920×1080)</option>
-                        <option value="9:16">9:16 竖屏 (1080×1920)</option>
-                        <option value="1:1">1:1 方屏 (1080×1080)</option>
+                        <option value="16:9">16:9 横屏</option>
+                        <option value="9:16">9:16 竖屏</option>
+                        <option value="1:1">1:1 方屏</option>
                     </select>
                 </div>
                 <div>
                     <label class="block text-sm font-medium text-gray-700 mb-1">视频时长</label>
-                    <select id="duration" class="w-full px-4 py-2 border border-gray-300 rounded-lg">
+                    <select id="duration" class="w-full px-4 py-2 border border-gray-300 rounded-lg" onchange="updateCostPreview()">
                         <option value="6">6 秒</option>
-                        <option value="10">10 秒</option>
+                        <option value="11">11 秒</option>
                     </select>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">参考音频</label>
+                    <input type="text" id="audioUrl" placeholder="音频URL（可选）" class="w-full px-4 py-2 border border-gray-300 rounded-lg text-sm">
                 </div>
             </div>
 
-            <div class="mb-4">
-                <label class="block text-sm font-medium text-gray-700 mb-1">参考音频 URL (可选)</label>
-                <input type="text" id="audioUrl" placeholder="输入音频 URL"
-                       class="w-full px-4 py-2 border border-gray-300 rounded-lg">
+            <!-- Cost Preview -->
+            <div id="costPreview" class="bg-pink-50 rounded-xl p-3 mb-4 flex items-center justify-between">
+                <span class="text-sm text-gray-600">本次消耗</span>
+                <span class="text-pink-600 font-bold" id="costText">120积分（¥12）</span>
             </div>
 
             <button onclick="submitTask()" id="submitBtn"
-                    class="btn-primary text-white px-8 py-3 rounded-lg font-medium transition-all w-full text-lg">
-                🚀 生成视频
+                    class="btn-primary text-white px-8 py-3 rounded-xl font-medium transition-all w-full text-lg">
+                🚀 提交生成（预扣积分）
             </button>
         </div>
 
         <!-- Task Status Card -->
-        <div id="taskCard" class="card rounded-2xl shadow-2xl p-8 hidden fade-in">
+        <div id="taskCard" class="card rounded-2xl shadow-2xl p-8 mb-6 hidden fade-in task-card">
             <h2 class="text-xl font-semibold text-gray-800 mb-4 flex items-center gap-2">
                 <span>📊</span> 任务状态
             </h2>
-            <div class="mb-4">
-                <span class="text-sm text-gray-600">Task ID: </span>
-                <span id="taskIdDisplay" class="text-sm font-mono text-gray-800"></span>
+            <div class="mb-3">
+                <span class="text-sm text-gray-500">Task ID: </span>
+                <span id="taskIdDisplay" class="text-sm font-mono text-gray-700"></span>
             </div>
-            <div id="progressArea" class="mb-4">
+            <div id="progressArea" class="mb-3">
                 <div class="flex items-center gap-3 mb-2">
-                    <div id="spinner" class="animate-spin rounded-full h-5 w-5 border-2 border-indigo-600 border-t-transparent"></div>
-                    <span id="statusText" class="text-gray-700">生成中...</span>
+                    <div id="spinner" class="animate-spin rounded-full h-5 w-5 border-2 border-pink-600 border-t-transparent"></div>
+                    <span id="statusText" class="text-gray-700">生成中，预计5-10分钟...</span>
                 </div>
                 <div class="w-full bg-gray-200 rounded-full h-2">
-                    <div id="progressBar" class="bg-indigo-600 h-2 rounded-full transition-all" style="width: 0%"></div>
+                    <div id="progressBar" class="bg-pink-500 h-2 rounded-full transition-all" style="width: 5%"></div>
                 </div>
+                <div class="text-xs text-gray-400 mt-1">💡 生成过程约需5-10分钟，请耐心等待</div>
             </div>
             <div id="resultArea" class="hidden">
-                <div id="resultContent" class="bg-gray-50 rounded-lg p-4"></div>
+                <div id="resultContent" class="bg-gray-50 rounded-xl p-4"></div>
+                <button onclick="document.getElementById('taskCard').classList.add('hidden')" class="mt-3 text-sm text-gray-500 hover:text-gray-700">收起 ↑</button>
             </div>
         </div>
 
-        <!-- Tips -->
-        <div class="text-center text-white/60 text-sm mt-6">
-            <p>💡 提示：首次使用需配置火山引擎 Access Key 和 Secret Key</p>
-            <p class="mt-1">获取地址：<a href="https://console.volcengine.com/visual" target="_blank" class="underline">火山引擎控制台</a></p>
+        <!-- Transaction History -->
+        <div class="card rounded-2xl shadow-xl p-6 mb-6 fade-in">
+            <div class="flex items-center justify-between mb-4">
+                <h2 class="text-lg font-semibold text-gray-800 flex items-center gap-2">
+                    <span>📜</span> 积分记录
+                </h2>
+                <button onclick="loadTransactions()" class="text-xs text-gray-400 hover:text-gray-600">🔄 刷新</button>
+            </div>
+            <div id="txList" class="space-y-2 max-h-80 overflow-y-auto">
+                <div class="text-center text-gray-400 text-sm py-4">加载中...</div>
+            </div>
+        </div>
+
+        <!-- Footer -->
+        <div class="text-center text-white/40 text-xs mt-6">
+            <p>💡 积分不足？点击右上角 ⚡ 充值积分</p>
+            <p class="mt-1">客服微信：HermeQuant | 官网：hermequant.ai</p>
         </div>
     </div>
 
+    <!-- Recharge Modal -->
+    <div id="rechargeModal" class="fixed inset-0 bg-black/60 flex items-center justify-center z-50 hidden">
+        <div class="bg-white rounded-2xl p-8 max-w-md w-full mx-4 shadow-2xl fade-in">
+            <div class="flex justify-between items-center mb-6">
+                <h3 class="text-xl font-bold text-gray-800">⚡ 充值积分</h3>
+                <button onclick="closeRechargeModal()" class="text-gray-400 hover:text-gray-600 text-2xl">&times;</button>
+            </div>
+
+            <div class="space-y-3 mb-6">
+                <div class="border-2 border-gray-100 rounded-xl p-4 hover:border-pink-300 cursor-pointer transition-colors" onclick="selectRechargePkg(this, '体验', 50, 500)">
+                    <div class="flex justify-between items-center">
+                        <div>
+                            <div class="font-bold text-gray-800">🎯 体验包</div>
+                            <div class="text-sm text-gray-500">500积分</div>
+                        </div>
+                        <div class="text-right">
+                            <div class="text-xl font-bold text-pink-500">¥50</div>
+                            <div class="text-xs text-gray-400">10积分=1元</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="border-2 border-pink-300 rounded-xl p-4 bg-pink-50 cursor-pointer transition-colors" onclick="selectRechargePkg(this, '标准', 200, 2500)">
+                    <div class="flex justify-between items-center">
+                        <div>
+                            <div class="font-bold text-gray-800">⭐ 标准包</div>
+                            <div class="text-sm text-gray-500">2500积分</div>
+                        </div>
+                        <div class="text-right">
+                            <div class="text-xl font-bold text-pink-500">¥200</div>
+                            <div class="text-xs text-gray-400">8积分=1元（推荐）</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="border-2 border-gray-100 rounded-xl p-4 hover:border-pink-300 cursor-pointer transition-colors" onclick="selectRechargePkg(this, '高级', 500, 7000)">
+                    <div class="flex justify-between items-center">
+                        <div>
+                            <div class="font-bold text-gray-800">👑 高级包</div>
+                            <div class="text-sm text-gray-500">7000积分</div>
+                        </div>
+                        <div class="text-right">
+                            <div class="text-xl font-bold text-pink-500">¥500</div>
+                            <div class="text-xs text-gray-400">7积分=1元</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="mb-4">
+                <label class="block text-sm font-medium text-gray-700 mb-1">输入充值码</label>
+                <input type="text" id="rechargeCode" placeholder="例如：AB12CD34EF56GH78"
+                       class="w-full px-4 py-3 border-2 border-gray-200 rounded-xl text-center font-mono tracking-widest uppercase">
+            </div>
+
+            <button onclick="redeemCode()" id="redeemBtn"
+                    class="btn-primary text-white px-8 py-3 rounded-xl font-medium transition-all w-full">
+                立即兑换
+            </button>
+
+            <div class="mt-4 text-center text-xs text-gray-400">
+                <p>充值码获取方式：</p>
+                <p>1. 微信/支付宝扫码打款</p>
+                <p>2. 联系客服获取充值码</p>
+                <p>3. 公司账号转账，备注手机号</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast -->
+    <div id="toast" class="fixed bottom-6 left-1/2 -translate-x-1/2 bg-gray-900 text-white px-6 py-3 rounded-xl shadow-2xl text-sm hidden z-50">
+        <span id="toastMsg"></span>
+    </div>
+
     <script>
+        let currentCost = 120;
         let uploadedImageUrl = '';
         let currentTaskId = '';
         let pollInterval = null;
-        let uploadedFiles = [];
 
-        function toggleImageUpload() {
-            const type = document.querySelector('input[name="videoType"]:checked').value;
-            const section = document.getElementById('imageUploadSection');
-            section.classList.toggle('hidden', type !== 'image');
+        // ====== Init ======
+        window.onload = function() {
+            loadBalance();
+            loadTransactions();
+        };
+
+        // ====== Balance ======
+        async function loadBalance() {
+            try {
+                const resp = await fetch('/api/balance');
+                const data = await resp.json();
+                if (data.success) {
+                    document.getElementById('balanceDisplay').textContent = data.balance + '积分';
+                    document.getElementById('yuanDisplay').textContent = '约 ' + (data.balance / 10).toFixed(1) + ' 元';
+                    if (data.balance < 10) {
+                        showToast('⚠️ 积分不足，请及时充值', 'warning');
+                    }
+                }
+            } catch(e) { console.error(e); }
         }
 
-        function handleImageSelect(event) {
+        // ====== Bonus ======
+        async function claimBonus() {
+            const btn = document.getElementById('bonusBtn');
+            btn.disabled = true;
+            try {
+                const resp = await fetch('/api/bonus', {method:'POST'});
+                const data = await resp.json();
+                if (data.success) {
+                    showToast('🎉 获得30积分赠送！');
+                    loadBalance();
+                    loadTransactions();
+                } else {
+                    showToast(data.message || '已领取过');
+                }
+            } catch(e) { showToast('领取失败'); }
+            btn.disabled = false;
+        }
+
+        // ====== Cost Preview ======
+        function updateCostPreview() {
+            const videoType = document.querySelector('input[name="videoType"]:checked').value;
+            const duration = parseInt(document.getElementById('duration').value);
+            const hasAudio = document.getElementById('audioUrl').value.trim();
+            let cost = (videoType === 'text' ? (duration <= 6 ? 120 : 200) : (duration <= 6 ? 150 : 250));
+            if (hasAudio) cost += 50;
+            currentCost = cost;
+            document.getElementById('costText').textContent = cost + '积分（¥' + (cost/10) + '）';
+        }
+        updateCostPreview();
+
+        // ====== Recharge Modal ======
+        function showRechargeModal() {
+            document.getElementById('rechargeModal').classList.remove('hidden');
+        }
+        function closeRechargeModal() {
+            document.getElementById('rechargeModal').classList.add('hidden');
+        }
+        function selectRechargePkg(el, name, yuan, points) {
+            document.querySelectorAll('[onclick^="selectRechargePkg"]').forEach(e => {
+                e.classList.remove('border-pink-300', 'bg-pink-50');
+                e.classList.add('border-gray-100');
+            });
+            el.classList.add('border-pink-300', 'bg-pink-50');
+            el.classList.remove('border-gray-100');
+            showToast('已选择 ' + name + '，请联系客服获取充值码 ¥' + yuan + ' → ' + points + '积分');
+        }
+        async function redeemCode() {
+            const code = document.getElementById('rechargeCode').value.trim().toUpperCase();
+            if (!code) { showToast('请输入充值码'); return; }
+            const btn = document.getElementById('redeemBtn');
+            btn.disabled = true;
+            btn.textContent = '兑换中...';
+            try {
+                const resp = await fetch('/api/redeem', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({code})
+                });
+                const data = await resp.json();
+                if (data.success) {
+                    showToast('✅ 充值成功！+' + data.balance + '积分');
+                    loadBalance();
+                    loadTransactions();
+                    closeRechargeModal();
+                    document.getElementById('rechargeCode').value = '';
+                } else {
+                    showToast('❌ ' + (data.error || '充值失败'));
+                }
+            } catch(e) { showToast('❌ ' + e.message); }
+            btn.disabled = false;
+            btn.textContent = '立即兑换';
+        }
+
+        // ====== Transactions ======
+        async function loadTransactions() {
+            try {
+                const resp = await fetch('/api/transactions');
+                const data = await resp.json();
+                const list = document.getElementById('txList');
+                if (!data.success || data.transactions.length === 0) {
+                    list.innerHTML = '<div class="text-center text-gray-400 text-sm py-4">暂无记录</div>';
+                    return;
+                }
+                list.innerHTML = data.transactions.map(tx => {
+                    const cls = tx.type === 'recharge' || tx.type === 'bonus' ? 'tx-recharge' :
+                                tx.type === 'refund' ? 'tx-refund' : 'tx-consume';
+                    const icon = tx.type === 'recharge' ? '💰' : tx.type === 'bonus' ? '🎁' :
+                                 tx.type === 'refund' ? '↩️' : '💸';
+                    const sign = tx.amount > 0 ? '+' : '';
+                    const amtColor = tx.amount > 0 ? 'text-green-600' : 'text-red-500';
+                    const date = new Date(tx.time).toLocaleString('zh-CN', {month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'});
+                    return '<div class="bg-gray-50 rounded-xl p-3 ' + cls + '"><div class="flex justify-between items-center"><div><span class="mr-2">' + icon + '</span><span class="text-sm text-gray-700">' + tx.desc + '</span></div><div><span class="' + amtColor + ' font-bold">' + sign + tx.amount + '积分</span></div></div><div class="text-xs text-gray-400 mt-1">' + date + '</div></div>';
+                }).join('');
+            } catch(e) {
+                document.getElementById('txList').innerHTML = '<div class="text-center text-gray-400 text-sm py-4">加载失败</div>';
+            }
+        }
+
+        // ====== Image Upload ======
+        function toggleImageUpload() {
+            const type = document.querySelector('input[name="videoType"]:checked').value;
+            document.getElementById('imageUploadSection').classList.toggle('hidden', type !== 'image');
+            updateCostPreview();
+        }
+
+        async function handleImageSelect(event) {
             const file = event.target.files[0];
             if (!file) return;
-            if (file.size > 10 * 1024 * 1024) {
-                alert('图片大小不能超过 10MB');
-                return;
-            }
+            if (file.size > 10 * 1024 * 1024) { showToast('图片不能超过10MB'); return; }
             const reader = new FileReader();
             reader.onload = function(e) {
                 document.getElementById('previewImg').src = e.target.result;
@@ -190,121 +421,53 @@
                 document.getElementById('imageName').textContent = file.name;
             };
             reader.readAsDataURL(file);
-            // 自动上传
-            uploadImage(file);
+            // 图片直接用URL输入，不做服务端上传
+            showToast('图片已选择，请确保有可访问的URL或复制图片地址到下方');
         }
 
-        async function uploadImage(file) {
-            const accessToken = document.getElementById('accessToken').value.trim();
-            if (!accessToken) {
-                alert('请先获取 Access Token');
-                return;
-            }
-            const formData = new FormData();
-            formData.append('file', file);
-            try {
-                const response = await fetch(`/api/upload?access_token=${encodeURIComponent(accessToken)}`, {
-                    method: 'POST',
-                    body: formData
-                });
-                const result = await response.json();
-                if (result.success) {
-                    uploadedImageUrl = result.url;
-                    document.getElementById('imageUrl').value = result.url;
-                } else {
-                    alert('上传失败: ' + result.error);
-                }
-            } catch (e) {
-                alert('上传失败: ' + e.message);
-            }
-        }
-
-        async function getToken() {
-            const apiKey = document.getElementById('apiKey').value.trim();
-            const secretKey = document.getElementById('secretKey').value.trim();
-            if (!apiKey || !secretKey) {
-                alert('请输入 Access Key 和 Secret Key');
-                return;
-            }
-            const statusEl = document.getElementById('tokenStatus');
-            statusEl.textContent = '正在获取...';
-            statusEl.className = 'mt-3 text-sm text-blue-600';
-            statusEl.classList.remove('hidden');
-            try {
-                const response = await fetch('/api/get_token', {
-                    method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({api_key: apiKey, secret_key: secretKey})
-                });
-                const result = await response.json();
-                if (result.success) {
-                    document.getElementById('accessToken').value = result.token;
-                    statusEl.textContent = '✅ Token 获取成功';
-                    statusEl.className = 'mt-3 text-sm text-green-600';
-                } else {
-                    statusEl.textContent = '❌ ' + result.error;
-                    statusEl.className = 'mt-3 text-sm text-red-600';
-                }
-            } catch (e) {
-                statusEl.textContent = '❌ ' + e.message;
-                statusEl.className = 'mt-3 text-sm text-red-600';
-            }
-        }
-
+        // ====== Submit ======
         async function submitTask() {
-            const accessToken = document.getElementById('accessToken').value.trim();
-            if (!accessToken) {
-                alert('请先获取 Access Token');
-                return;
-            }
             const prompt = document.getElementById('prompt').value.trim();
-            if (!prompt) {
-                alert('请输入提示词');
-                return;
-            }
+            if (!prompt) { showToast('请输入提示词'); return; }
+
             const videoType = document.querySelector('input[name="videoType"]:checked').value;
             if (videoType === 'image') {
-                const imageUrl = document.getElementById('imageUrl').value.trim();
-                if (!imageUrl && !uploadedImageUrl) {
-                    alert('请上传参考图片或输入图片 URL');
-                    return;
-                }
+                const imgUrl = document.getElementById('imageUrl').value.trim();
+                if (!imgUrl) { showToast('请上传参考图片或输入图片URL'); return; }
             }
+
             const params = {
-                access_token: accessToken,
+                video_type: videoType,
                 prompt: prompt,
                 aspect_ratio: document.getElementById('aspectRatio').value,
-                duration: parseInt(document.getElementById('duration').value)
+                duration: parseInt(document.getElementById('duration').value),
+                image_url: document.getElementById('imageUrl').value.trim(),
+                audio_url: document.getElementById('audioUrl').value.trim(),
             };
-            if (videoType === 'image') {
-                params.image_url = uploadedImageUrl || document.getElementById('imageUrl').value.trim();
-            }
-            const audioUrl = document.getElementById('audioUrl').value.trim();
-            if (audioUrl) params.audio_url = audioUrl;
+
             const btn = document.getElementById('submitBtn');
             btn.disabled = true;
             btn.textContent = '⏳ 提交中...';
             try {
-                const response = await fetch('/api/submit_task', {
+                const resp = await fetch('/api/submit', {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
                     body: JSON.stringify(params)
                 });
-                const result = await response.json();
-                if (result.success) {
-                    currentTaskId = result.task_id;
-                    showTaskCard(result.task_id);
-                    startPolling();
+                const data = await resp.json();
+                if (data.success) {
+                    showToast('✅ ' + data.message);
+                    currentTaskId = data.task_id;
+                    showTaskCard(data.task_id);
+                    loadBalance();
+                    loadTransactions();
+                    startPolling(data.task_id);
                 } else {
-                    alert('提交失败: ' + result.error);
-                    btn.disabled = false;
-                    btn.textContent = '🚀 生成视频';
+                    showToast('❌ ' + (data.error || '提交失败'));
                 }
-            } catch (e) {
-                alert('提交失败: ' + e.message);
-                btn.disabled = false;
-                btn.textContent = '🚀 生成视频';
-            }
+            } catch(e) { showToast('❌ ' + e.message); }
+            btn.disabled = false;
+            btn.textContent = '🚀 提交生成（预扣积分）';
         }
 
         function showTaskCard(taskId) {
@@ -313,67 +476,61 @@
             document.getElementById('taskIdDisplay').textContent = taskId;
             document.getElementById('progressArea').classList.remove('hidden');
             document.getElementById('resultArea').classList.add('hidden');
-            document.getElementById('statusText').textContent = '生成中...';
-            document.getElementById('progressBar').style.width = '0%';
-            document.getElementById('submitBtn').disabled = false;
-            document.getElementById('submitBtn').textContent = '🚀 生成视频';
             card.scrollIntoView({behavior: 'smooth'});
         }
 
-        function startPolling() {
+        function startPolling(taskId) {
             if (pollInterval) clearInterval(pollInterval);
-            pollInterval = setInterval(pollTask, 5000);
-        }
-
-        async function pollTask() {
-            const accessToken = document.getElementById('accessToken').value.trim();
-            try {
-                const response = await fetch(`/api/query_task?task_id=${encodeURIComponent(currentTaskId)}&access_token=${encodeURIComponent(accessToken)}`);
-                const result = await response.json();
-                if (result.success) {
-                    const data = result.data.data || result.data;
-                    const status = data.status;
-                    const statusText = document.getElementById('statusText');
-                    const progressBar = document.getElementById('progressBar');
-                    if (status === 'PROCESSING' || status === 'PENDING') {
-                        statusText.textContent = '生成中... ' + (data.progress || '0%');
-                        progressBar.style.width = (data.progress || '0%').toString().replace('%', '') + '%';
-                    } else if (status === 'SUCCESS') {
-                        statusText.textContent = '✅ 生成成功';
-                        progressBar.style.width = '100%';
-                        clearInterval(pollInterval);
-                        showResult(data);
-                    } else if (status === 'FAILED') {
-                        statusText.textContent = '❌ 生成失败';
-                        statusText.className = 'status-failed';
-                        clearInterval(pollInterval);
-                        showResult(data);
-                    } else {
-                        statusText.textContent = status;
+            let progress = 5;
+            pollInterval = setInterval(async () => {
+                try {
+                    const resp = await fetch('/api/query?task_id=' + encodeURIComponent(taskId));
+                    const data = await resp.json();
+                    if (data.success) {
+                        const status = data.data.status;
+                        if (status === 'SUCCESS') {
+                            clearInterval(pollInterval);
+                            document.getElementById('statusText').textContent = '✅ 生成成功！';
+                            document.getElementById('progressBar').style.width = '100%';
+                            document.getElementById('progressArea').classList.add('hidden');
+                            document.getElementById('resultArea').classList.remove('hidden');
+                            showResult(data.data);
+                            loadBalance();
+                            loadTransactions();
+                        } else if (status === 'FAILED') {
+                            clearInterval(pollInterval);
+                            document.getElementById('statusText').textContent = '❌ ' + (data.data.error || '生成失败');
+                            document.getElementById('statusText').className = 'status-failed';
+                            document.getElementById('progressArea').classList.add('hidden');
+                            document.getElementById('resultArea').classList.remove('hidden');
+                            document.getElementById('resultContent').innerHTML = '<p class="text-red-500">失败原因：' + (data.data.error || '未知错误') + '</p><p class="text-sm text-gray-500 mt-2">积分已退回</p>';
+                            loadBalance();
+                        } else {
+                            progress = Math.min(progress + Math.random() * 5, 90);
+                            document.getElementById('progressBar').style.width = progress + '%';
+                        }
                     }
-                }
-            } catch (e) {
-                console.error('轮询失败:', e);
-            }
+                } catch(e) {}
+            }, 10000);
         }
 
         function showResult(data) {
-            document.getElementById('progressArea').classList.add('hidden');
-            const resultArea = document.getElementById('resultArea');
-            resultArea.classList.remove('hidden');
             const content = document.getElementById('resultContent');
-            if (data.video_url) {
-                content.innerHTML = `
-                    <video controls class="w-full rounded-lg" src="${data.video_url}">
-                        您的浏览器不支持视频播放
-                    </video>
-                    <p class="mt-3 text-sm text-gray-600">视频地址: <a href="${data.video_url}" target="_blank" class="text-indigo-600 underline">${data.video_url}</a></p>
-                `;
-            } else if (data.error) {
-                content.innerHTML = `<p class="text-red-600">错误: ${data.error}</p>`;
+            const videoUrl = data.data?.video_url || data.data?.output_url || data.data?.data?.output?.video_url;
+            if (videoUrl) {
+                content.innerHTML = '<video controls class="w-full rounded-xl" src="' + videoUrl + '"><video>';
+                content.innerHTML += '<p class="text-sm text-gray-600 mt-2">视频地址：<a href="' + videoUrl + '" target="_blank" class="text-pink-500 underline">' + videoUrl + '</a></p>';
             } else {
-                content.innerHTML = `<pre class="text-sm text-gray-700 overflow-auto">${JSON.stringify(data, null, 2)}</pre>`;
+                content.innerHTML = '<pre class="text-xs text-gray-600 overflow-auto max-h-60">' + JSON.stringify(data.data || data, null, 2) + '</pre>';
             }
+        }
+
+        // ====== Toast ======
+        function showToast(msg, type) {
+            const toast = document.getElementById('toast');
+            document.getElementById('toastMsg').textContent = msg;
+            toast.classList.remove('hidden');
+            setTimeout(() => toast.classList.add('hidden'), 3000);
         }
     </script>
 </body>
