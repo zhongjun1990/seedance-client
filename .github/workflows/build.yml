@@ -58,17 +58,49 @@ jobs:
           # 复制图标
           cp AppIcon.icns build/BatchVideo.app/Contents/Resources/AppIcon.icns
 
+      - name: Install create-dmg
+        run: |
+          brew install create-dmg
+
       - name: Create DMG with custom layout
         run: |
-          WORKSPACE=$(pwd)/dmg_workspace
-          mkdir -p "$WORKSPACE"
-          # 复制 app
-          cp -r build/BatchVideo.app "$WORKSPACE/"
-          # 创建符号链接
-          ln -sf /Applications "$WORKSPACE/Applications"
-          # 创建 DMG
-          hdiutil create -volname "批量视频" -srcfolder "$WORKSPACE" -ov -format UDZO /tmp/BatchVideo.dmg
-          cp /tmp/BatchVideo.dmg build/BatchVideo.dmg
+          # 复制 App
+          cp -r build/BatchVideo.app dmg_src/
+          mkdir -p dmg_src/.background
+          # 生成背景图（紫粉渐变 + 提示文字）
+          # 用系统 Python 生成背景 PNG
+          python3 -c "
+from PIL import Image, ImageDraw, ImageFont
+w, h = 600, 400
+img = Image.new('RGB', (w, h), '#1a1a2e')
+draw = ImageDraw.Draw(img)
+# 渐变
+for y in range(h):
+    ratio = y / h
+    r = int(102 * (1-ratio) + 233 * ratio)
+    g = int(126 * (1-ratio) + 69 * ratio)
+    b = int(234 * (1-ratio) + 98 * ratio)
+    draw.line([(0, y), (w, y)], fill=(r, g, b))
+# 标题
+try:
+    draw.text((w//2, 60), '批量视频', fill='white', anchor='mm')
+    draw.text((w//2, 90), 'BatchVideo', fill='#ffffff99', anchor='mm')
+    draw.text((w//2, h-50), '拖动下方图标到 Applications 文件夹即可安装', fill='white', anchor='mm')
+except: pass
+img.save('dmg_src/.background/background.png')
+"
+          # 用 create-dmg 创建标准布局 DMG
+          create-dmg \
+            --volname "批量视频" \
+            --volicon "AppIcon.icns" \
+            --background "dmg_src/.background/background.png" \
+            --window-pos "200,200" \
+            --window-size "600,400" \
+            --icon-size "80" \
+            --icon "BatchVideo.app" "150,120" \
+            --hide-extension "BatchVideo.app" \
+            --app-drop-link "480,120" \
+            build/BatchVideo.dmg
 
       - name: Upload DMG
         uses: actions/upload-artifact@v4
