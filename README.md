@@ -1,6 +1,6 @@
-# Seedance 2.0 Desktop App
+# 批量视频 Desktop App
 
-火山引擎 Seedance 2.0 AI 视频生成桌面工具
+火山引擎 批量视频 AI 视频生成桌面工具
 
 ## 功能特性
 
@@ -33,10 +33,10 @@ python main.py
 
 ## 下载桌面应用
 
-从 [Releases](https://github.com/YOUR_USERNAME/seedance-client/releases) 下载：
+从 [Releases](https://github.com/YOUR_USERNAME/batchvideo/releases) 下载：
 
-- **Windows**: `Seedance2-Windows.exe`
-- **macOS**: `Seedance2-macOS.dmg`
+- **Windows**: `BatchVideo-Windows.exe`
+- **macOS**: `BatchVideo-macOS.dmg`
 
 ## 技术栈
 

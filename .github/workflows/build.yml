@@ -23,13 +23,14 @@ jobs:
 
       - name: Build Windows EXE
         run: |
-          pyinstaller --onefile --windowed --name Seedance2 --add-data "templates;templates" main.py
+          cp AppIcon.ico .
+          pyinstaller --onefile --windowed --name BatchVideo --add-data "templates;templates" --icon AppIcon.ico main.py
 
       - name: Upload EXE
         uses: actions/upload-artifact@v4
         with:
-          name: Seedance2-Windows
-          path: dist/Seedance2.exe
+          name: BatchVideo-Windows
+          path: dist/BatchVideo.exe
           retention-days: 30
 
   build-macos:
@@ -49,22 +50,30 @@ jobs:
 
       - name: Build macOS App
         run: |
-          mkdir -p build/Seedance2.app/Contents/MacOS
-          mkdir -p build/Seedance2.app/Contents/Resources
-          pyinstaller --onedir --windowed --name Seedance2 --add-data "templates:templates" main.py
-          cp -r dist/Seedance2/* build/Seedance2.app/Contents/MacOS/
-          cp Info.plist build/Seedance2.app/Contents/Info.plist
-          chmod +x build/Seedance2.app/Contents/MacOS/Seedance2
+          mkdir -p build/BatchVideo.app/Contents/MacOS
+          mkdir -p build/BatchVideo.app/Contents/Resources
+          pyinstaller --onedir --windowed --name BatchVideo --add-data "templates:templates" main.py
+          cp -r dist/BatchVideo/* build/BatchVideo.app/Contents/MacOS/
+          cp Info.plist build/BatchVideo.app/Contents/Info.plist
+          chmod +x build/BatchVideo.app/Contents/MacOS/BatchVideo
+          # 复制图标
+          cp AppIcon.icns build/BatchVideo.app/Contents/Resources/AppIcon.icns
 
-      - name: Create DMG
+      - name: Create DMG with custom layout
         run: |
-          # 在 /tmp 创建 DMG 再复制到 build，避免源目标相同问题
-          hdiutil create -volname Seedance2 -srcfolder build/Seedance2.app -ov -format UDZO /tmp/Seedance2.dmg
-          cp /tmp/Seedance2.dmg build/Seedance2.dmg
+          WORKSPACE=$(pwd)/dmg_workspace
+          mkdir -p "$WORKSPACE"
+          # 复制 app
+          cp -r build/BatchVideo.app "$WORKSPACE/"
+          # 创建符号链接
+          ln -sf /Applications "$WORKSPACE/Applications"
+          # 创建 DMG
+          hdiutil create -volname "批量视频" -srcfolder "$WORKSPACE" -ov -format UDZO /tmp/BatchVideo.dmg
+          cp /tmp/BatchVideo.dmg build/BatchVideo.dmg
 
       - name: Upload DMG
         uses: actions/upload-artifact@v4
         with:
-          name: Seedance2-macOS
-          path: build/Seedance2.dmg
+          name: BatchVideo-macOS
+          path: build/BatchVideo.dmg
           retention-days: 30

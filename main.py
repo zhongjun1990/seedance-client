@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-Seedance 2.0 - HermeQuant 积分版
-火山引擎 Seedance 2.0 AI 视频生成（积分计费）
+批量视频 - HermeQuant 积分版
+火山引擎 批量视频 AI 视频生成（积分计费）
 """
 
 import os
@@ -288,6 +288,6 @@ def api_query():
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5173))
-    print(f"Seedance 2.0 HermeQuant 积分版启动，端口 {port}")
+    print(f"批量视频 HermeQuant 积分版启动，端口 {port}")
     print(f"积分存储路径: {credits_manager.DATA_DIR}")
     app.run(host="0.0.0.0", port=port, debug=False)
