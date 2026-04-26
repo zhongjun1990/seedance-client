@@ -58,7 +58,7 @@ jobs:
 
       - name: Create ZIP
         run: |
-          cd build && zip -r Seedance2-macOS.zip Seedance2.app && mv Seedance2-macOS.zip ../build/
+          cd build && zip -r Seedance2-macOS.zip Seedance2.app
 
       - name: Upload ZIP
         uses: actions/upload-artifact@v4
